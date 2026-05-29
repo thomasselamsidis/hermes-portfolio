@@ -54,12 +54,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
 
 .spacer{flex:1}
 
+/* ── Connection Status ── */
 .live-badge{display:flex;align-items:center;gap:8px;padding:6px 14px;
   border:1px solid rgba(52,211,153,.2);border-radius:100px;
-  background:rgba(52,211,153,.06);font-size:11px;font-weight:600;color:var(--green)}
+  background:rgba(52,211,153,.06);font-size:11px;font-weight:600;color:var(--green);
+  transition:all .3s}
+.live-badge.disconnected{border-color:rgba(251,113,133,.2);background:rgba(251,113,133,.06);color:var(--rose)}
+.live-badge.reconnecting{border-color:rgba(251,191,36,.2);background:rgba(251,191,36,.06);color:var(--amber)}
 .live-badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);
   box-shadow:0 0 8px var(--green);animation:pulse 2s ease infinite}
+.live-badge.disconnected .pulse{background:var(--rose);box-shadow:0 0 8px var(--rose);animation:none}
+.live-badge.reconnecting .pulse{background:var(--amber);box-shadow:0 0 8px var(--amber);animation:blink 1s ease infinite}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.5;box-shadow:0 0 2px var(--green)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
 .topbar .clock{font-family:var(--mono);font-size:12px;color:var(--text2);letter-spacing:1px}
 
@@ -84,6 +91,11 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
 .stat-card .value{font-family:var(--mono);font-size:24px;font-weight:700;letter-spacing:-1px}
 .stat-card .sub{font-size:10px;color:var(--text3);margin-top:4px;font-family:var(--mono)}
 .stat-card .icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.15}
+
+/* ── Sparkline ── */
+.sparkline{width:100%;height:20px;margin-top:8px;opacity:.6}
+.sparkline svg{width:100%;height:100%}
+.sparkline path{fill:none;stroke:currentColor;stroke-width:2}
 
 /* ── Main layout ── */
 .main{display:grid;grid-template-columns:1fr 400px;flex:1;overflow:hidden}
@@ -170,6 +182,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
 .c-msg.sent .bubble{background:linear-gradient(135deg,rgba(56,232,230,.1),rgba(167,139,250,.08));
   border:1px solid rgba(56,232,230,.12);border-bottom-right-radius:4px}
 .c-msg.recv .bubble{background:var(--bg4);border:1px solid var(--border);border-bottom-left-radius:4px}
+.c-msg.error .bubble{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);color:var(--rose)}
 .c-msg .meta{font-size:9px;color:var(--text3);margin-top:4px;padding:0 4px;display:flex;gap:8px}
 .c-msg.sent .meta{justify-content:flex-end}
 
@@ -225,6 +238,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
 .detail-msgs{flex:1;overflow-y:auto;padding:16px 24px}
 .detail-msgs::-webkit-scrollbar{width:4px}.detail-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
+/* ── Timeline visualization ── */
+.timeline{margin-bottom:20px}
+.timeline-header{font-size:11px;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.timeline-chart{height:60px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px;display:flex;align-items:end;gap:2px;overflow:hidden}
+.timeline-bar{flex:1;min-width:2px;background:linear-gradient(to top,var(--cyan),var(--violet));
+  border-radius:1px;opacity:.7;transition:all .2s}
+.timeline-bar:hover{opacity:1;transform:scaleY(1.1)}
+
 .d-msg{padding:10px 14px;margin-bottom:8px;border-radius:12px;font-size:12px;line-height:1.7;
   white-space:pre-wrap;word-break:break-word}
 .d-msg.user{background:rgba(56,232,230,.04);border-left:3px solid var(--cyan)}
@@ -244,6 +266,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
 /* ── Utility ── */
 .glow-text{background:linear-gradient(135deg,var(--cyan),var(--violet));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+/* ── Notification ── */
+.notification{position:fixed;top:20px;right:20px;z-index:100;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 18px;font-size:13px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);
+  transform:translateX(120%);transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.notification.show{transform:translateX(0)}
+.notification.success{border-color:var(--green);background:rgba(52,211,153,.05)}
+.notification.error{border-color:var(--rose);background:rgba(251,113,133,.05)}
 </style>
 </head>
 <body>
@@ -262,7 +293,10 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
       <div class="tag">Command Center</div>
     </div>
     <div class="spacer"></div>
-    <div class="live-badge"><div class="pulse"></div>All Systems Operational</div>
+    <div class="live-badge" id="live-badge">
+      <div class="pulse"></div>
+      <span id="connection-status">All Systems Operational</span>
+    </div>
     <div class="clock" id="clock">00:00:00</div>
   </div>
 
@@ -272,30 +306,35 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
       <div class="label">Total Sessions</div>
       <div class="value" id="v-sessions">11</div>
       <div class="sub">+3 today</div>
+      <div class="sparkline" id="spark-sessions"></div>
       <div class="icon">📋</div>
     </div>
     <div class="stat-card green">
       <div class="label">Active Agents</div>
       <div class="value" id="v-active">8</div>
       <div class="sub">running now</div>
+      <div class="sparkline" id="spark-active"></div>
       <div class="icon">⚡</div>
     </div>
     <div class="stat-card violet">
       <div class="label">Total Messages</div>
       <div class="value" id="v-msgs">602</div>
       <div class="sub">across all sessions</div>
+      <div class="sparkline" id="spark-msgs"></div>
       <div class="icon">💬</div>
     </div>
     <div class="stat-card amber">
       <div class="label">Tokens Used</div>
       <div class="value" id="v-tokens">5.2M</div>
       <div class="sub">input + output</div>
+      <div class="sparkline" id="spark-tokens"></div>
       <div class="icon">🔤</div>
     </div>
     <div class="stat-card rose">
       <div class="label">Estimated Cost</div>
       <div class="value" id="v-cost">$0.26</div>
       <div class="sub">this period</div>
+      <div class="sparkline" id="spark-cost"></div>
       <div class="icon">💰</div>
     </div>
   </div>
@@ -337,7 +376,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
       <div class="typing-indicator" id="typing"><div class="dots"><span></span><span></span><span></span></div> Agent is thinking…</div>
       <div class="chat-input-area">
         <div class="chat-input-row">
-          <input type="text" id="chat-in" placeholder="Type a message…" autocomplete="off">
+          <input type="text" id="chat-in" placeholder="Type a message… (Ctrl+K to focus)" autocomplete="off">
           <button class="send-btn" id="send-btn" onclick="sendChat()">↑</button>
         </div>
       </div>
@@ -354,13 +393,22 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hid
       <button class="close" onclick="closeDetail()">✕</button>
     </div>
     <div class="detail-info" id="d-info"></div>
+    <div class="timeline" id="d-timeline" style="display:none;">
+      <div class="timeline-header">Message Activity</div>
+      <div class="timeline-chart" id="timeline-chart"></div>
+    </div>
     <div class="detail-msgs" id="d-msgs"></div>
   </div>
 </div>
 
+<!-- Notification -->
+<div class="notification" id="notification"></div>
+
 <script>
 const $ = s => document.getElementById(s);
 let allSessions = [], currentFilter = 'all';
+let ws, wsOk = false, reconnectAttempts = 0;
+let chatHistory = [];
 
 // ── Clock ──────────────────────────────────────────────────────────────────
 function tickClock() {
@@ -369,26 +417,239 @@ function tickClock() {
 }
 tickClock(); setInterval(tickClock, 1000);
 
-// ── WebSocket ──────────────────────────────────────────────────────────────
-let ws, wsOk = false;
+// ── WebSocket with Enhanced Reconnection ───────────────────────────────────
+function updateConnectionStatus(status) {
+  const badge = $('live-badge');
+  const statusText = $('connection-status');
+  
+  badge.className = 'live-badge ' + status;
+  
+  switch(status) {
+    case 'connected':
+      statusText.textContent = 'All Systems Operational';
+      break;
+    case 'disconnected':
+      statusText.textContent = 'Connection Lost';
+      break;
+    case 'reconnecting':
+      statusText.textContent = `Reconnecting... (${reconnectAttempts})`;
+      break;
+  }
+}
+
 function connectWS() {
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+    return;
+  }
+
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   try {
     ws = new WebSocket(proto + '://' + location.host + '/ws');
-    ws.onopen = () => { wsOk = true; };
-    ws.onmessage = e => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d.stats) renderStats(d.stats);
-        if (d.sessions) { allSessions = d.sessions; renderSessions(); }
-        if (d.type === 'chat_response') { addChat('Hermes', d.text, 'recv'); $('typing').classList.remove('show'); $('send-btn').disabled = false; }
-      } catch (x) {}
+    
+    ws.onopen = () => {
+      wsOk = true;
+      reconnectAttempts = 0;
+      updateConnectionStatus('connected');
+      showNotification('Connected to Hermes Command Center', 'success');
     };
-    ws.onclose = () => { wsOk = false; setTimeout(connectWS, 4000); };
-    ws.onerror = () => {};
-  } catch (e) { setTimeout(connectWS, 4000); }
+    
+    ws.onmessage = handleWSMessage;
+    
+    ws.onclose = () => {
+      wsOk = false;
+      updateConnectionStatus('disconnected');
+      scheduleReconnect();
+    };
+    
+    ws.onerror = () => {
+      wsOk = false;
+      updateConnectionStatus('disconnected');
+    };
+  } catch (e) {
+    updateConnectionStatus('disconnected');
+    scheduleReconnect();
+  }
 }
-connectWS();
+
+function scheduleReconnect() {
+  if (reconnectAttempts < 10) {
+    reconnectAttempts++;
+    updateConnectionStatus('reconnecting');
+    
+    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
+    setTimeout(connectWS, delay);
+  } else {
+    updateConnectionStatus('disconnected');
+    showNotification('Connection failed. Please refresh the page.', 'error');
+  }
+}
+
+function handleWSMessage(e) {
+  try {
+    const d = JSON.parse(e.data);
+    if (d.stats) renderStats(d.stats);
+    if (d.sessions) { allSessions = d.sessions; renderSessions(); }
+    if (d.type === 'chat_response') {
+      addChat('Hermes', d.text, 'recv');
+      $('typing').classList.remove('show');
+      $('send-btn').disabled = false;
+      saveChatHistory();
+    }
+  } catch (x) {
+    console.error('WebSocket message error:', x);
+  }
+}
+
+// ── Chat with Error Handling and Retry Logic ──────────────────────────────
+async function sendChatWithRetry(text, profile, attempts = 0) {
+  const maxAttempts = 3;
+  const baseDelay = 1000;
+  
+  try {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'chat', text, profile }));
+      return;
+    }
+    
+    // WebSocket not available, try HTTP fallback
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, profile })
+    });
+    
+    if (response.status === 429) {
+      // Rate limit hit
+      if (attempts < maxAttempts) {
+        const delay = baseDelay * Math.pow(2, attempts); // Exponential backoff
+        showNotification(`Rate limited. Retrying in ${delay/1000}s...`, 'error');
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return sendChatWithRetry(text, profile, attempts + 1);
+      } else {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    addChat('Hermes', data.text || data.response || 'No response', 'recv');
+    
+  } catch (error) {
+    console.error('Chat error:', error);
+    
+    if (attempts < maxAttempts && (error.message.includes('429') || error.message.includes('rate'))) {
+      const delay = baseDelay * Math.pow(2, attempts);
+      showNotification(`Error: ${error.message}. Retrying in ${delay/1000}s...`, 'error');
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return sendChatWithRetry(text, profile, attempts + 1);
+    }
+    
+    addChat('System', `Error: ${error.message}`, 'error');
+    showNotification(`Chat failed: ${error.message}`, 'error');
+  } finally {
+    $('send-btn').disabled = false;
+    $('typing').classList.remove('show');
+  }
+}
+
+// ── Chat History Persistence ───────────────────────────────────────────────
+function loadChatHistory() {
+  try {
+    const saved = localStorage.getItem('hermes-chat-history');
+    if (saved) {
+      chatHistory = JSON.parse(saved);
+      chatHistory.forEach(msg => {
+        addChatToDOM(msg.sender, msg.text, msg.type, msg.timestamp);
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to load chat history:', e);
+  }
+}
+
+function saveChatHistory() {
+  try {
+    localStorage.setItem('hermes-chat-history', JSON.stringify(chatHistory));
+  } catch (e) {
+    console.warn('Failed to save chat history:', e);
+  }
+}
+
+// ── Notifications ──────────────────────────────────────────────────────────
+function showNotification(text, type = 'success') {
+  const notif = $('notification');
+  notif.textContent = text;
+  notif.className = `notification ${type} show`;
+  
+  setTimeout(() => {
+    notif.classList.remove('show');
+  }, 4000);
+}
+
+// ── Keyboard Shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  // Ctrl+K: Focus chat input
+  if (e.ctrlKey && e.key === 'k') {
+    e.preventDefault();
+    $('chat-in').focus();
+  }
+  
+  // Escape: Close detail panel
+  if (e.key === 'Escape') {
+    closeDetail();
+  }
+});
+
+// ── Sparklines ─────────────────────────────────────────────────────────────
+function generateSparkline(containerId, data, color) {
+  const container = $(containerId);
+  if (!container || !data || data.length === 0) return;
+  
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  
+  const width = 100;
+  const height = 20;
+  
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height;
+    return `${x},${y}`;
+  }).join(' ');
+  
+  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}"><polyline points="${points}" stroke="${color}" stroke-width="2" fill="none" opacity="0.7"/></svg>`;
+}
+
+function updateSparklines(activityData) {
+  if (!activityData || activityData.length === 0) {
+    // Generate demo data
+    const demo = Array.from({length: 7}, () => Math.random() * 100);
+    generateSparkline('spark-sessions', demo, '#38e8e6');
+    generateSparkline('spark-active', demo.map(x => x * 0.3), '#34d399');
+    generateSparkline('spark-msgs', demo.map(x => x * 2), '#a78bfa');
+    generateSparkline('spark-tokens', demo.map(x => x * 50), '#fbbf24');
+    generateSparkline('spark-cost', demo.map(x => x * 0.01), '#fb7185');
+    return;
+  }
+  
+  const sessions = activityData.map(d => d.sessions || 0);
+  const msgs = activityData.map(d => d.msgs || 0);
+  const tokens = activityData.map(d => d.tokens || 0);
+  const cost = activityData.map(d => d.cost || 0);
+  
+  generateSparkline('spark-sessions', sessions, '#38e8e6');
+  generateSparkline('spark-active', sessions.map(x => x * 0.8), '#34d399');
+  generateSparkline('spark-msgs', msgs, '#a78bfa');
+  generateSparkline('spark-tokens', tokens, '#fbbf24');
+  generateSparkline('spark-cost', cost, '#fb7185');
+}
 
 // ── Render Stats ───────────────────────────────────────────────────────────
 function renderStats(s) {
@@ -440,16 +701,19 @@ function filterSessions(f) {
   renderSessions();
 }
 
-// ── Session Detail ─────────────────────────────────────────────────────────
+// ── Session Detail with Timeline ───────────────────────────────────────────
 async function openDetail(sid) {
   $('overlay').classList.add('show');
   $('d-title').textContent = sid;
   $('d-msgs').innerHTML = '<div style="color:var(--text3);padding:40px;text-align:center">Loading…</div>';
+  $('d-timeline').style.display = 'none';
+  
   try {
     const [sData, mData] = await Promise.all([
       fetch('/api/sessions?limit=999').then(r => r.json()),
       fetch('/api/sessions/' + sid + '/messages?limit=200').then(r => r.json())
     ]);
+    
     const session = (sData.sessions || []).find(x => x.id === sid) || {};
     $('d-title').textContent = session.title || sid;
     $('d-info').innerHTML =
@@ -458,12 +722,43 @@ async function openDetail(sid) {
       '<div class="info-item"><div class="lbl">Messages</div><div class="val">' + (session.message_count || 0) + '</div></div>' +
       '<div class="info-item"><div class="lbl">Tokens</div><div class="val">' + fmt(session.total_tokens) + '</div></div>' +
       '<div class="info-item"><div class="lbl">Cost</div><div class="val">$' + (session.estimated_cost_usd || 0).toFixed(4) + '</div></div>';
-    $('d-msgs').innerHTML = (mData.messages || []).map(m =>
+    
+    const messages = mData.messages || [];
+    
+    // Create timeline
+    if (messages.length > 2) {
+      createMessageTimeline(messages);
+      $('d-timeline').style.display = 'block';
+    }
+    
+    $('d-msgs').innerHTML = messages.map(m =>
       '<div class="d-msg ' + m.role + '"><div class="tag"><span>' + esc(m.role) + (m.tool_name ? ' · ' + esc(m.tool_name) : '') + '</span><span>' + esc(m.time) + '</span></div>' + esc(m.content || '') + '</div>'
     ).join('');
+    
   } catch (e) {
     $('d-msgs').innerHTML = '<div style="color:var(--rose);padding:40px;text-align:center">' + esc(String(e)) + '</div>';
   }
+}
+
+function createMessageTimeline(messages) {
+  const chart = $('timeline-chart');
+  if (!messages.length) return;
+  
+  // Group messages by time intervals (e.g., every 10 messages)
+  const buckets = [];
+  const bucketSize = Math.max(1, Math.floor(messages.length / 20));
+  
+  for (let i = 0; i < messages.length; i += bucketSize) {
+    const slice = messages.slice(i, i + bucketSize);
+    buckets.push(slice.length);
+  }
+  
+  const max = Math.max(...buckets);
+  
+  chart.innerHTML = buckets.map(count => {
+    const height = max > 0 ? (count / max) * 100 : 10;
+    return `<div class="timeline-bar" style="height:${height}%" title="${count} messages"></div>`;
+  }).join('');
 }
 
 function closeDetail(e) {
@@ -476,27 +771,38 @@ function sendChat() {
   const input = $('chat-in');
   const text = input.value.trim();
   if (!text) return;
+  
   const profile = $('profile').value;
   addChat('You', text, 'sent');
   input.value = '';
   $('send-btn').disabled = true;
   $('typing').classList.add('show');
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'chat', text, profile }));
-  } else {
-    setTimeout(() => {
-      addChat('System', 'WebSocket not connected. The dashboard server may be offline.', 'recv');
-      $('send-btn').disabled = false;
-      $('typing').classList.remove('show');
-    }, 500);
-  }
+  
+  sendChatWithRetry(text, profile);
 }
 
-function addChat(sender, text, cls) {
+function addChat(sender, text, cls, timestamp = null) {
+  const msgData = {
+    sender,
+    text,
+    type: cls,
+    timestamp: timestamp || Date.now()
+  };
+  
+  chatHistory.push(msgData);
+  if (chatHistory.length > 100) {
+    chatHistory = chatHistory.slice(-100); // Keep last 100 messages
+  }
+  
+  addChatToDOM(sender, text, cls, msgData.timestamp);
+  saveChatHistory();
+}
+
+function addChatToDOM(sender, text, cls, timestamp) {
   const div = document.createElement('div');
   div.className = 'c-msg ' + cls;
-  const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  div.innerHTML = '<div class="bubble">' + esc(text) + '</div><div class="meta"><span>' + esc(sender) + '</span><span>' + now + '</span></div>';
+  const time = new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  div.innerHTML = '<div class="bubble">' + esc(text) + '</div><div class="meta"><span>' + esc(sender) + '</span><span>' + time + '</span></div>';
   $('chat-msgs').appendChild(div);
   $('chat-msgs').scrollTop = $('chat-msgs').scrollHeight;
 }
@@ -530,18 +836,37 @@ const DEMO_SESSIONS = [
 
 // ── Init ───────────────────────────────────────────────────────────────────
 (async () => {
+  // Load chat history first
+  loadChatHistory();
+  
   try {
-    const [r1, r2] = await Promise.all([fetch('/api/stats'), fetch('/api/sessions?limit=50')]);
+    const [r1, r2, r3] = await Promise.all([
+      fetch('/api/stats'),
+      fetch('/api/sessions?limit=50'),
+      fetch('/api/activity?days=7')
+    ]);
+    
     const stats = await r1.json();
     const sess = await r2.json();
+    const activity = await r3.json();
+    
     renderStats(stats.stats);
     allSessions = sess.sessions || [];
     renderSessions();
+    updateSparklines(activity.daily);
+    
+    // Connect WebSocket after initial load
+    connectWS();
+    
   } catch (e) {
     // Static / GitHub Pages mode — use demo data
     renderStats(DEMO_STATS);
     allSessions = DEMO_SESSIONS;
     renderSessions();
+    updateSparklines();
+    
+    // Still try WebSocket in case we're actually live
+    connectWS();
   }
 })();
 </script>
