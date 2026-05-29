@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes · Command Center</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#06080c;--bg2:#0b0e14;--bg3:#111620;--bg4:#171d2a;
+  --border:#1c2435;--border2:#253048;
+  --text:#eaf0f8;--text2:#8b99ae;--text3:#4e5d73;
+  --cyan:#38e8e6;--cyan2:#14b8b6;--cyan-glow:rgba(56,232,230,.12);
+  --green:#34d399;--green2:#059669;--green-glow:rgba(52,211,153,.1);
+  --violet:#a78bfa;--violet2:#7c3aed;--violet-glow:rgba(167,139,250,.1);
+  --amber:#fbbf24;--amber2:#d97706;--amber-glow:rgba(251,191,36,.08);
+  --rose:#fb7185;--rose2:#e11d48;--rose-glow:rgba(251,113,133,.08);
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',-apple-system,sans-serif;
+  --radius:14px;--radius-sm:8px;
+}
+html{font-size:14px}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hidden;height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── Animated background ── */
+.bg-fx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bg-fx .orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:.35;animation:drift 20s ease-in-out infinite alternate}
+.bg-fx .o1{width:600px;height:600px;background:var(--cyan);top:-200px;left:-100px;animation-delay:0s}
+.bg-fx .o2{width:500px;height:500px;background:var(--violet);bottom:-200px;right:-100px;animation-delay:-7s}
+.bg-fx .o3{width:400px;height:400px;background:var(--green);top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:-14s;opacity:.15}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,-30px) scale(1.1)}100%{transform:translate(-20px,50px) scale(.95)}}
+
+/* ── Grid lines ── */
+.grid-fx{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(56,232,230,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(56,232,230,.025) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 20%,transparent 80%)}
+
+.app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column}
+
+/* ── Topbar ── */
+.topbar{height:60px;display:flex;align-items:center;padding:0 28px;gap:20px;
+  background:rgba(6,8,12,.75);backdrop-filter:blur(24px) saturate(1.4);
+  border-bottom:1px solid var(--border);flex-shrink:0}
+
+.brand{display:flex;align-items:center;gap:12px}
+.brand .icon{width:34px;height:34px;border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  display:grid;place-items:center;font-size:18px;font-weight:900;color:#000;
+  box-shadow:0 0 24px rgba(56,232,230,.3)}
+.brand .name{font-size:16px;font-weight:800;letter-spacing:3px;text-transform:uppercase}
+.brand .tag{font-size:10px;color:var(--text3);letter-spacing:2px;margin-left:4px}
+
+.spacer{flex:1}
+
+.live-badge{display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border:1px solid rgba(52,211,153,.2);border-radius:100px;
+  background:rgba(52,211,153,.06);font-size:11px;font-weight:600;color:var(--green)}
+.live-badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.5;box-shadow:0 0 2px var(--green)}}
+
+.topbar .clock{font-family:var(--mono);font-size:12px;color:var(--text2);letter-spacing:1px}
+
+/* ── Stats row ── */
+.stats-row{display:flex;gap:12px;padding:16px 28px;border-bottom:1px solid var(--border);
+  background:rgba(11,14,20,.6);backdrop-filter:blur(12px);flex-shrink:0;overflow-x:auto}
+
+.stat-card{flex:1;min-width:140px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 18px;position:relative;overflow:hidden;
+  transition:all .25s}
+.stat-card:hover{border-color:var(--border2);transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  border-radius:2px 2px 0 0}
+.stat-card.cyan::after{background:linear-gradient(90deg,transparent,var(--cyan),transparent)}
+.stat-card.green::after{background:linear-gradient(90deg,transparent,var(--green),transparent)}
+.stat-card.violet::after{background:linear-gradient(90deg,transparent,var(--violet),transparent)}
+.stat-card.amber::after{background:linear-gradient(90deg,transparent,var(--amber),transparent)}
+.stat-card.rose::after{background:linear-gradient(90deg,transparent,var(--rose),transparent)}
+
+.stat-card .label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:6px}
+.stat-card .value{font-family:var(--mono);font-size:24px;font-weight:700;letter-spacing:-1px}
+.stat-card .sub{font-size:10px;color:var(--text3);margin-top:4px;font-family:var(--mono)}
+.stat-card .icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.15}
+
+/* ── Main layout ── */
+.main{display:grid;grid-template-columns:1fr 400px;flex:1;overflow:hidden}
+
+/* ── Sessions ── */
+.sessions-panel{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+
+.panel-header{display:flex;align-items:center;gap:12px;padding:16px 24px;
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.panel-header h2{font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2)}
+.panel-header .badge{font-family:var(--mono);font-size:10px;padding:3px 10px;
+  border-radius:100px;background:var(--cyan-glow);color:var(--cyan);border:1px solid rgba(56,232,230,.15)}
+
+.filter-row{display:flex;gap:6px;padding:10px 24px;border-bottom:1px solid var(--border);flex-shrink:0}
+.filter-btn{padding:5px 14px;border-radius:100px;border:1px solid var(--border);
+  background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;
+  transition:all .15s;font-family:var(--sans)}
+.filter-btn:hover{border-color:var(--border2);color:var(--text2)}
+.filter-btn.active{background:var(--cyan-glow);border-color:rgba(56,232,230,.2);color:var(--cyan)}
+
+.sessions-list{flex:1;overflow-y:auto;padding:12px 16px}
+.sessions-list::-webkit-scrollbar{width:4px}.sessions-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Session card ── */
+.s-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 18px;margin-bottom:10px;cursor:pointer;transition:all .2s;position:relative}
+.s-card:hover{border-color:var(--cyan);transform:translateX(4px);
+  box-shadow:-4px 0 20px rgba(56,232,230,.08)}
+.s-card::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--text3);transition:all .2s}
+.s-card.active::before{background:var(--green);box-shadow:0 0 12px rgba(52,211,153,.4)}
+
+.s-card .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.s-card .title{font-size:14px;font-weight:700;max-width:60%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.s-card .source{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;
+  padding:3px 10px;border-radius:100px;font-weight:700}
+.s-card .source.cli{background:rgba(56,232,230,.08);color:var(--cyan);border:1px solid rgba(56,232,230,.12)}
+.s-card .source.telegram{background:rgba(52,211,153,.08);color:var(--green);border:1px solid rgba(52,211,153,.12)}
+.s-card .source.tool{background:rgba(167,139,250,.08);color:var(--violet);border:1px solid rgba(167,139,250,.12)}
+
+.s-card .model{font-family:var(--mono);font-size:10px;color:var(--violet);margin-bottom:6px;
+  display:flex;align-items:center;gap:6px}
+.s-card .model .dot{width:5px;height:5px;border-radius:50%;background:var(--violet)}
+
+.s-card .meta{display:flex;gap:16px;font-size:11px;color:var(--text3)}
+.s-card .meta span{display:flex;align-items:center;gap:4px}
+
+.s-card .bottom{display:flex;justify-content:space-between;align-items:center;margin-top:10px;
+  padding-top:10px;border-top:1px solid var(--border)}
+.s-card .tokens{font-family:var(--mono);font-size:12px;color:var(--cyan);font-weight:600}
+.s-card .cost{font-family:var(--mono);font-size:12px;color:var(--green);font-weight:600}
+.s-card .status{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.s-card .status.live{color:var(--green)}.s-card .status.ended{color:var(--text3)}
+.s-card .status .dot{width:6px;height:6px;border-radius:50%}
+.s-card .status.live .dot{background:var(--green);box-shadow:0 0 8px rgba(52,211,153,.5)}
+.s-card .status.ended .dot{background:var(--text3)}
+
+/* ── Chat panel ── */
+.chat-panel{display:flex;flex-direction:column;background:rgba(11,14,20,.5);
+  backdrop-filter:blur(8px)}
+
+.chat-header{padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:12px}
+.chat-header h2{font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2);flex:1}
+
+.profile-select{background:var(--bg4);border:1px solid var(--border);color:var(--text);
+  font-family:var(--mono);font-size:11px;padding:7px 12px;border-radius:var(--radius-sm);
+  outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b99ae' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;padding-right:28px}
+.profile-select option{background:var(--bg3);color:var(--text)}
+
+.chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+.chat-messages::-webkit-scrollbar{width:4px}.chat-messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+.c-msg{max-width:88%;animation:msgIn .3s ease}
+.c-msg.sent{align-self:flex-end}
+.c-msg.recv{align-self:flex-start}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.c-msg .bubble{padding:12px 16px;border-radius:16px;font-size:13px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-word}
+.c-msg.sent .bubble{background:linear-gradient(135deg,rgba(56,232,230,.1),rgba(167,139,250,.08));
+  border:1px solid rgba(56,232,230,.12);border-bottom-right-radius:4px}
+.c-msg.recv .bubble{background:var(--bg4);border:1px solid var(--border);border-bottom-left-radius:4px}
+.c-msg .meta{font-size:9px;color:var(--text3);margin-top:4px;padding:0 4px;display:flex;gap:8px}
+.c-msg.sent .meta{justify-content:flex-end}
+
+.c-msg.system .bubble{background:transparent;border:1px dashed var(--border);
+  color:var(--text3);font-size:11px;text-align:center;font-style:italic;padding:16px}
+
+.typing-indicator{display:none;padding:0 20px 8px;font-size:11px;color:var(--text3);
+  font-style:italic;align-items:center;gap:6px}
+.typing-indicator.show{display:flex}
+.typing-indicator .dots span{display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:var(--cyan);margin:0 1px;animation:typing 1.4s ease infinite}
+.typing-indicator .dots span:nth-child(2){animation-delay:.2s}
+.typing-indicator .dots span:nth-child(3){animation-delay:.4s}
+@keyframes typing{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+
+.chat-input-area{padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0}
+.chat-input-row{display:flex;gap:10px;align-items:flex-end}
+.chat-input-row input{flex:1;background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px 16px;color:var(--text);font-family:var(--sans);
+  font-size:13px;outline:none;transition:all .2s}
+.chat-input-row input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,232,230,.08)}
+.chat-input-row input::placeholder{color:var(--text3)}
+.send-btn{width:44px;height:44px;border-radius:var(--radius);border:none;
+  background:linear-gradient(135deg,var(--cyan),var(--cyan2));color:#000;
+  font-size:18px;cursor:pointer;transition:all .2s;display:grid;place-items:center;
+  flex-shrink:0}
+.send-btn:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(56,232,230,.3)}
+.send-btn:disabled{opacity:.3;transform:none;box-shadow:none}
+
+/* ── Detail overlay ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  backdrop-filter:blur(8px);z-index:50}
+.overlay.show{display:flex;justify-content:flex-end}
+.detail-panel{width:540px;height:100%;background:var(--bg2);border-left:1px solid var(--border);
+  transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column}
+.overlay.show .detail-panel{transform:translateX(0)}
+
+.detail-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;gap:12px;flex-shrink:0}
+.detail-head h3{font-size:16px;font-weight:800;flex:1}
+.detail-head .close{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
+  background:transparent;color:var(--text3);font-size:16px;cursor:pointer;
+  display:grid;place-items:center;transition:all .15s}
+.detail-head .close:hover{border-color:var(--rose);color:var(--rose)}
+
+.detail-info{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;
+  gap:20px;flex-wrap:wrap;font-size:11px;color:var(--text2);flex-shrink:0}
+.detail-info .info-item{display:flex;flex-direction:column;gap:2px}
+.detail-info .info-item .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3)}
+.detail-info .info-item .val{font-family:var(--mono);font-weight:600;color:var(--text)}
+
+.detail-msgs{flex:1;overflow-y:auto;padding:16px 24px}
+.detail-msgs::-webkit-scrollbar{width:4px}.detail-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+.d-msg{padding:10px 14px;margin-bottom:8px;border-radius:12px;font-size:12px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-word}
+.d-msg.user{background:rgba(56,232,230,.04);border-left:3px solid var(--cyan)}
+.d-msg.assistant{background:rgba(52,211,153,.04);border-left:3px solid var(--green)}
+.d-msg.tool{background:rgba(167,139,250,.04);border-left:3px solid var(--violet)}
+.d-msg.system{background:rgba(251,191,36,.04);border-left:3px solid var(--amber)}
+.d-msg .tag{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);
+  margin-bottom:4px;display:flex;justify-content:space-between}
+
+/* ── Responsive ── */
+@media(max-width:1000px){
+  .main{grid-template-columns:1fr}
+  .chat-panel{display:none}
+  .stats-row{flex-wrap:nowrap;overflow-x:auto}
+}
+
+/* ── Utility ── */
+.glow-text{background:linear-gradient(135deg,var(--cyan),var(--violet));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+
+<!-- Background effects -->
+<div class="bg-fx"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+<div class="grid-fx"></div>
+
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="icon">☿</div>
+      <div class="name">Hermes</div>
+      <div class="tag">Command Center</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="live-badge"><div class="pulse"></div>All Systems Operational</div>
+    <div class="clock" id="clock">00:00:00</div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card cyan">
+      <div class="label">Total Sessions</div>
+      <div class="value" id="v-sessions">11</div>
+      <div class="sub">+3 today</div>
+      <div class="icon">📋</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">Active Agents</div>
+      <div class="value" id="v-active">8</div>
+      <div class="sub">running now</div>
+      <div class="icon">⚡</div>
+    </div>
+    <div class="stat-card violet">
+      <div class="label">Total Messages</div>
+      <div class="value" id="v-msgs">602</div>
+      <div class="sub">across all sessions</div>
+      <div class="icon">💬</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="label">Tokens Used</div>
+      <div class="value" id="v-tokens">5.2M</div>
+      <div class="sub">input + output</div>
+      <div class="icon">🔤</div>
+    </div>
+    <div class="stat-card rose">
+      <div class="label">Estimated Cost</div>
+      <div class="value" id="v-cost">$0.26</div>
+      <div class="sub">this period</div>
+      <div class="icon">💰</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Sessions Panel -->
+    <div class="sessions-panel">
+      <div class="panel-header">
+        <h2>Sessions</h2>
+        <div class="badge" id="s-count">11</div>
+      </div>
+      <div class="filter-row">
+        <button class="filter-btn active" onclick="filterSessions('all')">All</button>
+        <button class="filter-btn" onclick="filterSessions('active')">Active</button>
+        <button class="filter-btn" onclick="filterSessions('cli')">CLI</button>
+        <button class="filter-btn" onclick="filterSessions('tool')">Tool</button>
+      </div>
+      <div class="sessions-list" id="s-list"></div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel">
+      <div class="chat-header">
+        <h2>Agent Chat</h2>
+        <select class="profile-select" id="profile">
+          <option value="">⚡ default</option>
+          <option value="coder">🛠 coder</option>
+          <option value="researcher">🔍 researcher</option>
+          <option value="writer">✍️ writer</option>
+          <option value="devops">🔧 devops</option>
+          <option value="analyst">📊 analyst</option>
+        </select>
+      </div>
+      <div class="chat-messages" id="chat-msgs">
+        <div class="c-msg system"><div class="bubble">Select an agent profile above and start chatting.<br>Messages are sent to your Hermes instance in real time.</div></div>
+      </div>
+      <div class="typing-indicator" id="typing"><div class="dots"><span></span><span></span><span></span></div> Agent is thinking…</div>
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <input type="text" id="chat-in" placeholder="Type a message…" autocomplete="off">
+          <button class="send-btn" id="send-btn" onclick="sendChat()">↑</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Detail Overlay -->
+<div class="overlay" id="overlay" onclick="closeDetail(event)">
+  <div class="detail-panel" onclick="event.stopPropagation()">
+    <div class="detail-head">
+      <h3 id="d-title">Session</h3>
+      <button class="close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="detail-info" id="d-info"></div>
+    <div class="detail-msgs" id="d-msgs"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.getElementById(s);
+let allSessions = [], currentFilter = 'all';
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function tickClock() {
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+tickClock(); setInterval(tickClock, 1000);
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+let ws, wsOk = false;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try {
+    ws = new WebSocket(proto + '://' + location.host + '/ws');
+    ws.onopen = () => { wsOk = true; };
+    ws.onmessage = e => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.stats) renderStats(d.stats);
+        if (d.sessions) { allSessions = d.sessions; renderSessions(); }
+        if (d.type === 'chat_response') { addChat('Hermes', d.text, 'recv'); $('typing').classList.remove('show'); $('send-btn').disabled = false; }
+      } catch (x) {}
+    };
+    ws.onclose = () => { wsOk = false; setTimeout(connectWS, 4000); };
+    ws.onerror = () => {};
+  } catch (e) { setTimeout(connectWS, 4000); }
+}
+connectWS();
+
+// ── Render Stats ───────────────────────────────────────────────────────────
+function renderStats(s) {
+  if (!s) return;
+  $('v-sessions').textContent = fmt(s.total_sessions);
+  $('v-active').textContent = fmt(s.active_sessions);
+  $('v-msgs').textContent = fmt(s.total_messages);
+  const tok = (s.total_input_tokens || 0) + (s.total_output_tokens || 0) + (s.total_cache_tokens || 0);
+  $('v-tokens').textContent = fmt(tok);
+  $('v-cost').textContent = '$' + (s.total_cost || 0).toFixed(2);
+}
+
+// ── Render Sessions ────────────────────────────────────────────────────────
+function renderSessions() {
+  const filtered = allSessions.filter(s => {
+    if (currentFilter === 'active') return s.is_active;
+    if (currentFilter === 'cli') return s.source === 'cli';
+    if (currentFilter === 'tool') return s.source === 'tool';
+    return true;
+  });
+  $('s-count').textContent = filtered.length;
+  $('s-list').innerHTML = filtered.map(s => {
+    const srcCls = s.source === 'cli' ? 'cli' : s.source === 'telegram' ? 'telegram' : 'tool';
+    const statusCls = s.is_active ? 'live' : 'ended';
+    const statusText = s.is_active ? 'LIVE' : 'ENDED';
+    return '<div class="s-card' + (s.is_active ? ' active' : '') + '" onclick="openDetail(\'' + s.id + '\')">' +
+      '<div class="top">' +
+        '<div class="title">' + esc(s.title || s.id) + '</div>' +
+        '<div class="source ' + srcCls + '">' + esc(s.source || '—') + '</div>' +
+      '</div>' +
+      '<div class="model"><div class="dot"></div>' + esc(s.model || '—') + '</div>' +
+      '<div class="meta">' +
+        '<span>🕐 ' + esc(s.started_human) + '</span>' +
+        '<span>💬 ' + (s.message_count || 0) + '</span>' +
+        '<span>🔧 ' + (s.tool_call_count || 0) + '</span>' +
+      '</div>' +
+      '<div class="bottom">' +
+        '<div><span class="tokens">' + fmt(s.total_tokens) + ' tok</span> &nbsp; <span class="cost">$' + (s.estimated_cost_usd || 0).toFixed(4) + '</span></div>' +
+        '<div class="status ' + statusCls + '"><div class="dot"></div>' + statusText + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function filterSessions(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSessions();
+}
+
+// ── Session Detail ─────────────────────────────────────────────────────────
+async function openDetail(sid) {
+  $('overlay').classList.add('show');
+  $('d-title').textContent = sid;
+  $('d-msgs').innerHTML = '<div style="color:var(--text3);padding:40px;text-align:center">Loading…</div>';
+  try {
+    const [sData, mData] = await Promise.all([
+      fetch('/api/sessions?limit=999').then(r => r.json()),
+      fetch('/api/sessions/' + sid + '/messages?limit=200').then(r => r.json())
+    ]);
+    const session = (sData.sessions || []).find(x => x.id === sid) || {};
+    $('d-title').textContent = session.title || sid;
+    $('d-info').innerHTML =
+      '<div class="info-item"><div class="lbl">Model</div><div class="val">' + esc(session.model || '—') + '</div></div>' +
+      '<div class="info-item"><div class="lbl">Source</div><div class="val">' + esc(session.source || '—') + '</div></div>' +
+      '<div class="info-item"><div class="lbl">Messages</div><div class="val">' + (session.message_count || 0) + '</div></div>' +
+      '<div class="info-item"><div class="lbl">Tokens</div><div class="val">' + fmt(session.total_tokens) + '</div></div>' +
+      '<div class="info-item"><div class="lbl">Cost</div><div class="val">$' + (session.estimated_cost_usd || 0).toFixed(4) + '</div></div>';
+    $('d-msgs').innerHTML = (mData.messages || []).map(m =>
+      '<div class="d-msg ' + m.role + '"><div class="tag"><span>' + esc(m.role) + (m.tool_name ? ' · ' + esc(m.tool_name) : '') + '</span><span>' + esc(m.time) + '</span></div>' + esc(m.content || '') + '</div>'
+    ).join('');
+  } catch (e) {
+    $('d-msgs').innerHTML = '<div style="color:var(--rose);padding:40px;text-align:center">' + esc(String(e)) + '</div>';
+  }
+}
+
+function closeDetail(e) {
+  if (e && e.target !== $('overlay')) return;
+  $('overlay').classList.remove('show');
+}
+
+// ── Chat ───────────────────────────────────────────────────────────────────
+function sendChat() {
+  const input = $('chat-in');
+  const text = input.value.trim();
+  if (!text) return;
+  const profile = $('profile').value;
+  addChat('You', text, 'sent');
+  input.value = '';
+  $('send-btn').disabled = true;
+  $('typing').classList.add('show');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'chat', text, profile }));
+  } else {
+    setTimeout(() => {
+      addChat('System', 'WebSocket not connected. The dashboard server may be offline.', 'recv');
+      $('send-btn').disabled = false;
+      $('typing').classList.remove('show');
+    }, 500);
+  }
+}
+
+function addChat(sender, text, cls) {
+  const div = document.createElement('div');
+  div.className = 'c-msg ' + cls;
+  const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  div.innerHTML = '<div class="bubble">' + esc(text) + '</div><div class="meta"><span>' + esc(sender) + '</span><span>' + now + '</span></div>';
+  $('chat-msgs').appendChild(div);
+  $('chat-msgs').scrollTop = $('chat-msgs').scrollHeight;
+}
+
+$('chat-in').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n == null) return '0';
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// ── Demo data (for static/GitHub Pages view) ───────────────────────────────
+const DEMO_STATS = { total_sessions: 11, active_sessions: 8, total_messages: 602, total_tool_calls: 285, total_input_tokens: 482877, total_output_tokens: 35794, total_cache_tokens: 4891936, total_cost: 0.2588 };
+const DEMO_SESSIONS = [
+  { id: '20260529_002543_b29696', title: 'Dashboard build', source: 'cli', model: 'xiaomi/mimo-v2.5-pro', started_at: Date.now()/1000 - 3600, started_human: '00:25 · May 29', message_count: 81, tool_call_count: 45, input_tokens: 85285, output_tokens: 6593, total_tokens: 91878, estimated_cost_usd: 0.0456, is_active: true },
+  { id: '20260528_235012_a1b2c3', title: 'MCP server setup', source: 'cli', model: 'xiaomi/mimo-v2.5-pro', started_at: Date.now()/1000 - 7200, started_human: '23:50 · May 28', message_count: 45, tool_call_count: 22, input_tokens: 62100, output_tokens: 4200, total_tokens: 66300, estimated_cost_usd: 0.0312, is_active: true },
+  { id: '20260528_220145_d4e5f6', title: 'Profile creation', source: 'cli', model: 'xiaomi/mimo-v2.5-pro', started_at: Date.now()/1000 - 10800, started_human: '22:01 · May 28', message_count: 32, tool_call_count: 18, input_tokens: 45000, output_tokens: 3100, total_tokens: 48100, estimated_cost_usd: 0.0234, is_active: true },
+  { id: '20260528_200000_g7h8i9', title: 'Landing page demo', source: 'tool', model: 'xiaomi/mimo-v2.5-pro', started_at: Date.now()/1000 - 18000, started_human: '20:00 · May 28', message_count: 28, tool_call_count: 12, input_tokens: 38000, output_tokens: 2800, total_tokens: 40800, estimated_cost_usd: 0.0198, is_active: false },
+  { id: '20260528_180000_j0k1l2', title: 'Claude MCP connector', source: 'cli', model: 'deepseek/deepseek-v4-flash:free', started_at: Date.now()/1000 - 28800, started_human: '18:00 · May 28', message_count: 52, tool_call_count: 30, input_tokens: 95000, output_tokens: 8200, total_tokens: 103200, estimated_cost_usd: 0.0, is_active: true },
+  { id: '20260528_160000_m3n4o5', title: 'Server exploration', source: 'cli', model: 'xiaomi/mimo-v2.5-pro', started_at: Date.now()/1000 - 39600, started_human: '16:00 · May 28', message_count: 67, tool_call_count: 42, input_tokens: 120000, output_tokens: 9500, total_tokens: 129500, estimated_cost_usd: 0.0612, is_active: true },
+  { id: '20260528_140000_p6q7r8', title: 'Research session', source: 'tool', model: 'deepseek/deepseek-v4-flash:free', started_at: Date.now()/1000 - 50400, started_human: '14:00 · May 28', message_count: 15, tool_call_count: 8, input_tokens: 18000, output_tokens: 1200, total_tokens: 19200, estimated_cost_usd: 0.0, is_active: false },
+  { id: '20260528_120000_s9t0u1', title: 'Config setup', source: 'cli', model: 'deepseek/deepseek-v4-flash:free', started_at: Date.now()/1000 - 61200, started_human: '12:00 · May 28', message_count: 8, tool_call_count: 4, input_tokens: 5500, output_tokens: 800, total_tokens: 6300, estimated_cost_usd: 0.0, is_active: true },
+];
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const [r1, r2] = await Promise.all([fetch('/api/stats'), fetch('/api/sessions?limit=50')]);
+    const stats = await r1.json();
+    const sess = await r2.json();
+    renderStats(stats.stats);
+    allSessions = sess.sessions || [];
+    renderSessions();
+  } catch (e) {
+    // Static / GitHub Pages mode — use demo data
+    renderStats(DEMO_STATS);
+    allSessions = DEMO_SESSIONS;
+    renderSessions();
+  }
+})();
+</script>
+</body>
+</html>
